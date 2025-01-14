@@ -68,11 +68,11 @@ int parseInt(char *string)
     }
     else // Else its a decimal
     {
+        static int decimalBase = 10; // We need to multiply the number with 10 because its decimal
         for (int i = 0; i < n; i++)
         {
-            static int decimalBase = 10; // We need to multiply the number with 10 because its decimal
             int decimalConversion = convertDecimalDigit(string[i]); // No further needs to check if its valid, convertDecimalDigit does that
-            result = result * 10 + decimalConversion;
+            result = result * decimalBase + decimalConversion;
             // 931, i = 0, result = 9, i = 1, result = 90 + 3 = 93, i = 2, result = 930 + 1 = 931.
         }
         return result;
