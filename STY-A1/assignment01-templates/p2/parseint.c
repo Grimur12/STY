@@ -72,6 +72,10 @@ int parseInt(char *string)
         for (int i = 0; i < n; i++)
         {
             int decimalConversion = convertDecimalDigit(string[i]); // No further needs to check if its valid, convertDecimalDigit does that
+            if (decimalConversion == -1 )
+            {
+                return -1; // Adding the return statement for invalid decimals
+            }
             result = result * decimalBase + decimalConversion;
             // 931, i = 0, result = 9, i = 1, result = 90 + 3 = 93, i = 2, result = 930 + 1 = 931.
         }
