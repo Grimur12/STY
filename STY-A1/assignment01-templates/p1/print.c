@@ -1,6 +1,7 @@
+// grimurg21@ru.is  - sigurdurn21@ru.is
 #include "print.h"
 #include <inttypes.h>
-#include <stdio.h> // 
+#include <stdio.h> 
 
 void print_line(int64_t number, char *string)
 {

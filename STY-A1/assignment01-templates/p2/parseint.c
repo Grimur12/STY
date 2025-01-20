@@ -1,3 +1,4 @@
+// grimurg21@ru.is  - sigurdurn21@ru.is
 #include "parseint.h"
 
 /*

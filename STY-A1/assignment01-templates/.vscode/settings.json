@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "inttypes.h": "c",
+        "parseint.h": "c"
+    }
+}
