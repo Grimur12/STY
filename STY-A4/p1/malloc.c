@@ -1,4 +1,4 @@
-#define USE_REAL_SBRK 1
+#define USE_REAL_SBRK 0
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 #if USE_REAL_SBRK
@@ -78,12 +78,16 @@ Block *_firstFreeBlock;
  * Initializes the memory block. You don't need to change this.
  */
 void initAllocator()
-{
-        _heapStart = allocHeap(NULL, HEAP_SIZE);
+{	
+    _heapStart = allocHeap(NULL, HEAP_SIZE);
 	_heapSize = HEAP_SIZE;
 
 	/* Add more initialization below, e.g. for the free block list */
 	// See lab tutorial
+	_firstFreeBlock = (Block *)_heapStart;
+    _firstFreeBlock->size = HEAP_SIZE;
+    _firstFreeBlock->next = NULL;
+
 }
 
 
@@ -93,7 +97,7 @@ void initAllocator()
 static Block *_getNextBlockBySize(const Block *current)
 {
 	(void)current;
-	return NULL;
+	return (Block *)((uint8_t *)current + current->size);
 	// See lab tutorial
 }
 
@@ -110,8 +114,7 @@ void dumpAllocator()
  */
 uint64_t roundUp(uint64_t n)
 {
-	// See lab tutorial
-	return n;
+	return (n + 15) & ~15; // gives the next multiple of 16
 }
 
 /* Helper function that allocates a block 
@@ -131,7 +134,27 @@ void *my_malloc(uint64_t size)
 {
 	(void)size;
 	/* TODO: Implement */
-	return NULL;
+	uint64_t roundedSize = roundUp(size);
+    Block *prev = NULL;
+    Block *current = _firstFreeBlock;
+    Block *bestFit = NULL;
+    Block *bestFitPrev = NULL;
+
+	while (current != NULL) {
+		if (current->size >= roundedSize && (bestFit == NULL || current->size < bestFit->size)) {
+			bestFit = current;
+			bestFitPrev = prev;
+		}
+		prev = current;
+		current = current->next;
+	}
+
+	if (bestFit == NULL) {
+		
+	}
+
+	
+
 }
 
 
