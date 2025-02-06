@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-ASSIGNMENT=3
+ASSIGNMENT=4
 
 import os
 import re
@@ -39,7 +39,7 @@ def get_group_info():
     except FileNotFoundError:
         print("\ngroupinfo.txt not found")
         #print("Run on skel (for automatic creation) or create manually.")
-        print("Create that file with three lines:\nGroup: [your group number]\nFull Name 1 (userid1)\nFull Name 2 (userid2)\n\nWithout group (individual submission):\nFirst line 'No group', second line your name (userid)\n")
+        print("Create that file with three lines:\nGroup: [your group number]\nFull Name 1 (userid1)\nFull Name 2 (userid2)\n\nWithout group (individual submission):\nFirst line 'No group', second line your name (userid)\n"
         sys.exit(1)
 
 
