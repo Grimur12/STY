@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include "malloc.h"
 
@@ -42,6 +43,7 @@ uint8_t *allocHeap(uint8_t *currentHeap, uint64_t size)
 #include <assert.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include "malloc.h"
 // This is a "fake" version that you can use on MacOS
@@ -96,17 +98,50 @@ void initAllocator()
  */
 static Block *_getNextBlockBySize(const Block *current)
 {
-	(void)current;
-	return (Block *)((uint8_t *)current + current->size);
-	// See lab tutorial
-}
+	Block *end = (Block*)((uint8_t *)_heapStart + _heapSize);
+	Block *next = (Block *)((uint8_t *)current + current->size);
+
+	assert(next <= end);
+	return (next == end) ? NULL : next;
+	}
+	// Works as well:
+	// Block *next = (Block *)( (uint8 t *)current + current−>size );
+	//
+	// Note that in this case the cast to (uint8 t *) is essential.
+	// The type of current is (Block *). Without the cast,
+	// current + current−>size would mean adding sizeof(Block)*current−>size
 
 /*
  * Dumps the allocator. You should not need to modify this.
  */
 void dumpAllocator()
 {
-	// See lab tutorial
+	Block *current;
+	/* Note: This sample code prints addresses relative to the beginning of the heap */
+	/* Part a: all blocks, using size, and starting at the beginning of the heap */
+
+	current = (Block*)_heapStart;
+	printf("All blocks:\n");
+	while (current) 
+	{
+		printf("Block starting at %" PRIuPTR ", size %" PRIu64 "(%s)\n",
+		((uintptr_t)(void*)current - (uintptr_t)(void*)_heapStart),
+		current->size,
+		current->next == ALLOCATED_BLOCK_MAGIC ? "in use" : "free" );
+		
+		current = _getNextBlockBySize(current);
+	}
+	/* Part b: free blocks, using next pointer, and starting at firstFreeBlock */
+	printf ("Free block list:\n");
+	current = _firstFreeBlock;
+	while (current) 
+	{
+		printf (" Free block starting at %" PRIuPTR ", size %" PRIu64 "\n",
+		((uintptr_t)(void*)current - (uintptr_t)(void*)_heapStart),
+		current->size);
+		
+		current = current->next;
+	}
 }
 
 /*
@@ -114,7 +149,7 @@ void dumpAllocator()
  */
 uint64_t roundUp(uint64_t n)
 {
-	return (n + 15) & ~15; // gives the next multiple of 16
+	return (n+0xF) & (~0xF);
 }
 
 /* Helper function that allocates a block 
@@ -122,40 +157,57 @@ uint64_t roundUp(uint64_t n)
  */
 static void *allocate_block(Block **update_next, Block *block, uint64_t new_size)
 {
-	(void)update_next;
-	(void)block;
-	(void)new_size;
-	/* Not mandatory but possibly useful to implement this as a separate function
-	 * called by my_malloc */
-	return NULL;
+	if (block->size == new_size) 
+	{
+		*update_next = block->next; // take it from the free list
+	} else if (block->size > new_size) 
+	{
+		Block *extra = (Block *)((uint8_t *)block + new_size); // To get the space we didnt need to allocate since its bigger
+		extra->size = block->size - new_size; // extra space
+		extra->next = block->next;
+		*update_next = extra; // completely taking it out of the free list
+		block->size = new_size; // then we can let it allocate with the required size
+	}
+	block->next = (Block *)ALLOCATED_BLOCK_MAGIC;
+	return block->data; // returning pointer to the beginning of the blocks data area
 }
 
 void *my_malloc(uint64_t size)
 {
-	(void)size;
-	/* TODO: Implement */
-	uint64_t roundedSize = roundUp(size);
+    if (size == 0) return NULL;
+
+    uint64_t roundedSize = roundUp(size) + HEADER_SIZE;
     Block *prev = NULL;
     Block *current = _firstFreeBlock;
     Block *bestFit = NULL;
     Block *bestFitPrev = NULL;
 
-	while (current != NULL) {
-		if (current->size >= roundedSize && (bestFit == NULL || current->size < bestFit->size)) {
-			bestFit = current;
-			bestFitPrev = prev;
-		}
-		prev = current;
-		current = current->next;
-	}
+    while (current != NULL) {
+        if (current->size >= roundedSize) {
+            if (bestFit == NULL || current->size < bestFit->size) {
+                bestFit = current;
+                bestFitPrev = prev;
+            }
+        }
+        prev = current;
+        current = current->next;
+    }
 
-	if (bestFit == NULL) {
-		
-	}
+    if (bestFit == NULL) {
+        uint64_t newHeapSize = _heapSize + HEAP_SIZE;
+        uint8_t *newHeap = allocHeap(_heapStart, newHeapSize);
+        if (newHeap == NULL) return NULL;
+        _heapSize = newHeapSize;
+        Block *newBlock = (Block *)(_heapStart + (_heapSize - HEAP_SIZE));
+        newBlock->size = HEAP_SIZE;
+        newBlock->next = _firstFreeBlock;
+        _firstFreeBlock = newBlock;
+        return my_malloc(size);
+    }
 
-	
-
+    return allocate_block((bestFitPrev ? &bestFitPrev->next : &_firstFreeBlock), bestFit, roundedSize);
 }
+
 
 
 /* Helper function to merge two freelist blocks.
@@ -165,18 +217,46 @@ void *my_malloc(uint64_t size)
  */
 static void merge_blocks(Block *block1, Block *block2)
 {
-	(void)block1;
-	(void)block2;
-	/* TODO: Implement */
-	/* Note: Again this is not mandatory but possibly useful to put this in a separate
-	 * function called by my_free */
+	// Simply just merge the sizes, so make block 1 absorb block 2 and then skip over block 2 in the list.
+	block1->size += block2->size;
+	block1->next = block2->next;
 }
 
 
 void my_free(void *address)
 {
-	(void)address;
-	/* TODO: implement */
+    if (address == NULL) return;
+
+    Block *block = (Block *)((uint8_t *)address - HEADER_SIZE);
+    if (block->next != (Block *)ALLOCATED_BLOCK_MAGIC) {
+		
+	} return; // Ensure it was allocated
+
+    Block *prev = NULL;
+    Block *current = _firstFreeBlock;
+
+    // Find the correct insertion point (sorted order)
+    while (current != NULL && current < block) {
+        prev = current;
+        current = current->next;
+    }
+
+    // Insert block into the free list
+    if (prev == NULL) {
+        block->next = _firstFreeBlock;
+        _firstFreeBlock = block;
+    } else {
+        block->next = current;
+        prev->next = block;
+    }
+
+    // Try merging with the next block
+    if (block->next != NULL && (uint8_t *)block + block->size == (uint8_t *)block->next) {
+        merge_blocks(block, block->next);
+    }
+
+    // Try merging with the previous block
+    if (prev != NULL && (uint8_t *)prev + prev->size == (uint8_t *)block) {
+        merge_blocks(prev, block);
+    }
 }
-
-
