@@ -1,4 +1,4 @@
-#define USE_REAL_SBRK 0
+#define USE_REAL_SBRK 1
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 #if USE_REAL_SBRK
@@ -174,38 +174,40 @@ static void *allocate_block(Block **update_next, Block *block, uint64_t new_size
 
 void *my_malloc(uint64_t size)
 {
-    if (size == 0) return NULL;
+    if (size == 0 || size > HEAP_SIZE - HEADER_SIZE) return NULL; // if size is 0 or bigger than the heap size, return NULL
 
-    uint64_t roundedSize = roundUp(size) + HEADER_SIZE;
-    Block *prev = NULL;
-    Block *current = _firstFreeBlock;
-    Block *bestFit = NULL;
-    Block *bestFitPrev = NULL;
+	// Round up the size to the nearest multiple of 16
+    uint64_t roundedSize = roundUp(size) + HEADER_SIZE; 
+    Block *prev = NULL;  // previous block
+    Block *current = _firstFreeBlock; // start at the first free block
+    Block *bestFit = NULL; // best fit block
+    Block *bestFitPrev = NULL; // previous best fit block
 
     while (current != NULL) {
-        if (current->size >= roundedSize) {
-            if (bestFit == NULL || current->size < bestFit->size) {
-                bestFit = current;
-                bestFitPrev = prev;
-            }
+        if (current->size >= roundedSize && (bestFit == NULL || current->size < bestFit->size)) { //if the current block is bigger than the size we need and the best fit is null or the current block is smaller than the best fit
+            bestFit = current;
+            bestFitPrev = prev;
         }
         prev = current;
         current = current->next;
     }
 
     if (bestFit == NULL) {
-        uint64_t newHeapSize = _heapSize + HEAP_SIZE;
-        uint8_t *newHeap = allocHeap(_heapStart, newHeapSize);
-        if (newHeap == NULL) return NULL;
+        uint64_t newHeapSize = _heapSize + HEAP_SIZE; // allocate more memory if we cant find a block that fits
+        uint8_t *heapNew = allocHeap(_heapStart, newHeapSize);  // allocate the memory
+        if (heapNew == NULL) {
+			return NULL;
+		}
         _heapSize = newHeapSize;
-        Block *newBlock = (Block *)(_heapStart + (_heapSize - HEAP_SIZE));
+        Block *newBlock = (Block *)(_heapStart + _heapSize - HEAP_SIZE); // create a new block
         newBlock->size = HEAP_SIZE;
         newBlock->next = _firstFreeBlock;
         _firstFreeBlock = newBlock;
         return my_malloc(size);
     }
 
-    return allocate_block((bestFitPrev ? &bestFitPrev->next : &_firstFreeBlock), bestFit, roundedSize);
+    Block **update_next = (bestFitPrev ? &bestFitPrev->next : &_firstFreeBlock); // update the next pointer
+    return allocate_block(update_next, bestFit, roundedSize); // allocate the block
 }
 
 
@@ -225,38 +227,36 @@ static void merge_blocks(Block *block1, Block *block2)
 
 void my_free(void *address)
 {
-    if (address == NULL) return;
+    if (address == NULL) { 
+		return;
+	}
 
-    Block *block = (Block *)((uint8_t *)address - HEADER_SIZE);
+    Block *block = (Block *)((uint8_t *)address - HEADER_SIZE); // get the block from the address
     if (block->next != (Block *)ALLOCATED_BLOCK_MAGIC) {
-		
-	} return; // Ensure it was allocated
+		return; // return if not allocated
+	} 
 
     Block *prev = NULL;
     Block *current = _firstFreeBlock;
 
-    // Find the correct insertion point (sorted order)
-    while (current != NULL && current < block) {
+    while (current != NULL && current < block) { // find the right place to insert the block
         prev = current;
         current = current->next;
     }
-
-    // Insert block into the free list
-    if (prev == NULL) {
+ 
+    if (prev == NULL) { // if the block is the first free block
         block->next = _firstFreeBlock;
         _firstFreeBlock = block;
-    } else {
+    } else { // insert the block
         block->next = current;
         prev->next = block;
     }
 
-    // Try merging with the next block
-    if (block->next != NULL && (uint8_t *)block + block->size == (uint8_t *)block->next) {
+    if (block->next != NULL && (uint8_t *)block + block->size == (uint8_t *)block->next) { 
         merge_blocks(block, block->next);
     }
 
-    // Try merging with the previous block
-    if (prev != NULL && (uint8_t *)prev + prev->size == (uint8_t *)block) {
+    if (prev != NULL && (uint8_t *)prev + prev->size == (uint8_t *)block) { 
         merge_blocks(prev, block);
     }
 }
