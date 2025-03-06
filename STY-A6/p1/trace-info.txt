@@ -1,0 +1,3 @@
+/home/sigurdurn21/P6/trace-compile.txt
+ 1917252  3834563 27152277 trace-compile.txt
+9f6768146c27884fb3703c29344fb5db  trace-compile.txt
